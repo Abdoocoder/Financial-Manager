@@ -39,7 +39,7 @@ const Modal = ({ isOpen, onClose, title, children }: any) => {
 
 // --- Pages ---
 
-const Dashboard = ({ store, onAddClick }: any) => {
+const Dashboard = ({ store }: any) => {
   const { transactions, assets, debts, investments } = store;
 
   const totalIncome = transactions.filter((t: any) => t.type === TransactionType.INCOME).reduce((acc: number, t: any) => acc + t.amount, 0);
@@ -122,7 +122,7 @@ const Dashboard = ({ store, onAddClick }: any) => {
           <button className="text-emerald-600 text-sm font-medium">عرض الكل</button>
         </div>
         <div className="space-y-3">
-          {transactions.slice(-5).reverse().map((t: any) => (
+          {store.transactions.slice(-5).reverse().map((t: any) => (
             <div key={t.id} className="bg-white p-3 rounded-2xl flex items-center justify-between shadow-sm border border-slate-50">
               <div className="flex items-center gap-3">
                 <div className={`p-3 rounded-full ${t.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
@@ -284,6 +284,81 @@ const InvestmentsPage = ({ store }: any) => {
   );
 };
 
+const ReportsPage = ({ store }: any) => {
+  // Prepare data for Expense Breakdown (Pie Chart)
+  const expenseCategoryData = useMemo(() => {
+    const cats: Record<string, number> = {};
+    store.transactions
+      .filter((t: any) => t.type === TransactionType.EXPENSE)
+      .forEach((t: any) => {
+        cats[t.category] = (cats[t.category] || 0) + t.amount;
+      });
+    return Object.entries(cats)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [store.transactions]);
+
+  // Prepare data for Income vs Expense (Bar Chart) - Simplified for demo (Grouping by Transaction Type totals)
+  // In a real app, this would group by month. Here we just show total Income vs Total Expense.
+  const incomeVsExpenseData = useMemo(() => {
+    const income = store.transactions
+      .filter((t: any) => t.type === TransactionType.INCOME)
+      .reduce((sum: number, t: any) => sum + t.amount, 0);
+    const expense = store.transactions
+      .filter((t: any) => t.type === TransactionType.EXPENSE)
+      .reduce((sum: number, t: any) => sum + t.amount, 0);
+    
+    return [
+      { name: 'الدخل', value: income },
+      { name: 'المصاريف', value: expense }
+    ];
+  }, [store.transactions]);
+
+  const totalExpense = incomeVsExpenseData[1].value;
+
+  return (
+    <div className="space-y-6 pb-24">
+      <h1 className="text-2xl font-bold text-slate-800">التقارير المالية</h1>
+      
+      {/* Summary Cards */}
+      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+        <h3 className="font-bold text-slate-800 mb-4">ملخص الدخل والمصاريف</h3>
+        <div className="h-64 w-full">
+           <SimpleBarChart data={incomeVsExpenseData} />
+        </div>
+      </div>
+
+      {/* Expense Breakdown */}
+      <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+        <h3 className="font-bold text-slate-800 mb-2">تحليل المصاريف</h3>
+        <p className="text-sm text-slate-500 mb-6">أين تذهب أموالك؟</p>
+        
+        {expenseCategoryData.length > 0 ? (
+          <>
+            <DonutChart data={expenseCategoryData} />
+            <div className="mt-6 space-y-3">
+              {expenseCategoryData.map((item, index) => (
+                <div key={index} className="flex justify-between items-center p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full`} style={{ backgroundColor: ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6'][index % 5] }}></div>
+                    <span className="text-sm font-medium text-slate-700">{item.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-slate-800 block" dir="ltr">{formatCurrency(item.value)}</span>
+                    <span className="text-xs text-slate-400 block" dir="ltr">{((item.value / totalExpense) * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="py-10 text-center text-slate-400">لا توجد بيانات مصاريف لعرضها</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // --- Main App Layout ---
 
 const App = () => {
@@ -309,6 +384,7 @@ const App = () => {
       case 'dashboard': return <Dashboard store={store} />;
       case 'assets': return <AssetsPage store={store} />;
       case 'investments': return <InvestmentsPage store={store} />;
+      case 'reports': return <ReportsPage store={store} />;
       default: return <Dashboard store={store} />;
     }
   };
@@ -363,7 +439,7 @@ const App = () => {
             icon={Icons.Chart} 
             label="تقارير" 
             active={currentPage === 'reports'} 
-            onClick={() => {}} 
+            onClick={() => setCurrentPage('reports')} 
           />
         </div>
       </nav>
